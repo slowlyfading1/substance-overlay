@@ -1,0 +1,94 @@
+// Background script for handling API requests and extension functionality
+chrome.runtime.onInstalled.addListener(() => {
+    // Initialize default settings
+    chrome.storage.sync.get({
+        enablePsychonautWiki: true,
+        enableTripSit: true,
+        highlightColor: '#e6ffe6',
+        showDosage: true,
+        showInteractions: true,
+        showEffects: true,
+        showWarnings: true,
+        customSubstances: []
+    }, (items) => {
+        chrome.storage.sync.set(items);
+    });
+});
+
+// Handle API requests from content script
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'API_REQUEST') {
+        fetch(request.url, request.options)
+            .then(response => response.json())
+            .then(data => {
+                sendResponse({ success: true, data: data });
+            })
+            .catch(error => {
+                console.error('API request failed:', error);
+                sendResponse({ success: false, error: error.message });
+            });
+        return true; // Will respond asynchronously
+    }
+
+    if (request.type === 'GET_SETTINGS') {
+        chrome.storage.sync.get(null, (items) => {
+            sendResponse({ settings: items });
+        });
+        return true;
+    }
+
+    if (request.type === 'UPDATE_SETTINGS') {
+        chrome.storage.sync.set(request.settings, () => {
+            sendResponse({ success: true });
+            // Notify content scripts of settings update
+            chrome.tabs.query({}, (tabs) => {
+                tabs.forEach(tab => {
+                    chrome.tabs.sendMessage(tab.id, {
+                        type: 'SETTINGS_UPDATED',
+                        settings: request.settings
+                    }).catch(() => {
+                        // Ignore errors for inactive tabs
+                    });
+                });
+            });
+        });
+        return true;
+    }
+});
+
+// Handle tab updates
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete') {
+        chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            files: ['content.js']
+        }).catch(error => {
+            console.warn('Failed to inject content script:', error);
+        });
+    }
+});
+
+// Handle extension updates
+chrome.runtime.onUpdateAvailable.addListener((details) => {
+    console.log('Update available:', details);
+    chrome.runtime.reload();
+});
+
+// Error handling
+chrome.runtime.onError.addListener((error) => {
+    console.error('Runtime error:', error);
+});
+
+// Keep service worker active
+const keepAlive = () => {
+    chrome.runtime.getPlatformInfo(() => {
+        setTimeout(keepAlive, 20000);
+    });
+};
+
+keepAlive();
+
+// Handle uninstall
+chrome.runtime.setUninstallURL('https://forms.gle/feedback', () => {
+    console.log('Uninstall URL set');
+});

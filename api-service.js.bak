@@ -1,0 +1,289 @@
+class SubstanceAPI {
+    constructor(settings = {}) {
+        this.settings = settings;
+        this.cache = new Map();
+        this.requestQueue = new Map();
+        this.CACHE_DURATION = 1000 * 60 * 60; // 1 hour cache
+
+        this.API_ENDPOINTS = {
+            PSYCHONAUT: 'https://api.psychonautwiki.org',
+            TRIPSIT: 'https://tripbot.tripsit.me/api/tripsit/getAllDrugNames',
+            TRIPSIT_ALL: 'https://tripbot.tripsit.me/api/tripsit/getAllDrugs',
+            TRIPSIT_INFO: 'https://tripbot.tripsit.me/api/tripsit/getDrug'
+        };
+    }
+
+    normalizeSubstanceName(name) {
+        return name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    setFromCache(key, value) {
+        this.cache.set(key, {
+            timestamp: Date.now(),
+            value: value
+        });
+    }
+
+    getFromCache(key) {
+        const cached = this.cache.get(key);
+        if (!cached) return null;
+        
+        if (Date.now() - cached.timestamp > this.CACHE_DURATION) {
+            this.cache.delete(key);
+            return null;
+        }
+        
+        return cached.value;
+    }
+
+    async fetchWithRetry(fetchFn, retries = 3, delay = 1000) {
+        let lastError;
+        
+        for (let i = 0; i < retries; i++) {
+            try {
+                return await fetchFn();
+            } catch (error) {
+                lastError = error;
+                if (i < retries - 1) {
+                    await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+                }
+            }
+        }
+        
+        throw new Error('API request failed after retries: ' + lastError?.message);
+    }
+
+    async makeGraphQLRequest(query, variables = {}) {
+        const requestKey = JSON.stringify({ query, variables });
+        
+        if (this.requestQueue.has(requestKey)) {
+            return this.requestQueue.get(requestKey);
+        }
+
+        const requestPromise = (async () => {
+            try {
+                const response = await this.fetchWithRetry(async () => {
+                    const result = await chrome.runtime.sendMessage({
+                        type: 'API_REQUEST',
+                        url: this.API_ENDPOINTS.PSYCHONAUT,
+                        options: {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({ query, variables })
+                        }
+                    });
+
+                    if (!result?.success) {
+                        console.warn('API request returned unsuccessful status');
+                        return { data: { substances: [] } };
+                    }
+
+                    if (result.data?.data) {
+                        return result.data;
+                    } else if (result.data) {
+                        return { data: result.data };
+                    } else {
+                        return { data: { substances: [] } };
+                    }
+                });
+
+                return response;
+            } catch (error) {
+                console.warn('GraphQL request failed:', error);
+                return { data: { substances: [] } };
+            } finally {
+                this.requestQueue.delete(requestKey);
+            }
+        })();
+
+        this.requestQueue.set(requestKey, requestPromise);
+        return requestPromise;
+    }
+
+    async makeAPIRequest(url, options = {}) {
+        return this.fetchWithRetry(async () => {
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Accept': 'application/json',
+                    ...options.headers
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
+            }
+
+            return response.json();
+        });
+    }
+
+    async getPsychonautWikiMatches(substanceNames) {
+        if (!this.settings.enablePsychonautWiki) return new Map();
+
+        const results = new Map();
+        const uncachedSubstances = [];
+
+        // Check cache first
+        for (const name of substanceNames) {
+            const normalized = this.normalizeSubstanceName(name);
+            const cached = this.getFromCache(`pw_${normalized}`);
+            if (cached) {
+                results.set(name, cached);
+            } else {
+                uncachedSubstances.push(normalized);
+            }
+        }
+
+        if (uncachedSubstances.length === 0) return results;
+
+        try {
+            const query = `
+                query getSubstances($names: [String!]!) {
+                    substances(query: $names) {
+                        name
+                        commonNames
+                        class { chemical psychoactive }
+                        tolerance { full half zero }
+                        roas { name dose { units threshold heavy common { min max } } duration { onset peak offset total } }
+                        uncertainInteractions { name note }
+                        unsafeInteractions { name note }
+                        dangerousInteractions { name note }
+                    }
+                }
+            `;
+
+            const response = await this.makeGraphQLRequest(query, {
+                names: uncachedSubstances
+            });
+
+            const substances = response?.data?.substances || [];
+            
+            for (const substance of substances) {
+                const normalized = this.normalizeSubstanceName(substance.name);
+                const data = {
+                    name: substance.name,
+                    commonNames: substance.commonNames,
+                    class: substance.class,
+                    tolerance: substance.tolerance,
+                    roas: substance.roas,
+                    interactions: {
+                        uncertain: substance.uncertainInteractions,
+                        unsafe: substance.unsafeInteractions,
+                        dangerous: substance.dangerousInteractions
+                    },
+                    source: 'PsychonautWiki'
+                };
+                
+                this.setFromCache(`pw_${normalized}`, data);
+                
+                // Match against original substance names
+                for (const originalName of substanceNames) {
+                    if (this.normalizeSubstanceName(originalName) === normalized) {
+                        results.set(originalName, data);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch PsychonautWiki data:', error);
+        }
+
+        return results;
+    }
+
+    async getTripSitMatches(substanceNames) {
+        if (!this.settings.enableTripSit) return new Map();
+
+        const results = new Map();
+        const uncachedSubstances = [];
+
+        // Check cache first
+        for (const name of substanceNames) {
+            const normalized = this.normalizeSubstanceName(name);
+            const cached = this.getFromCache(`tripsit_${normalized}`);
+            if (cached) {
+                results.set(name, cached);
+            } else {
+                uncachedSubstances.push(name);
+            }
+        }
+
+        if (uncachedSubstances.length === 0) return results;
+
+        try {
+            // First get all drugs to match against
+            const allDrugsResponse = await this.makeAPIRequest(this.API_ENDPOINTS.TRIPSIT_ALL);
+            const allDrugs = allDrugsResponse?.data?.data?.drugs || {};
+
+            // Match substance names against TripSit data
+            const matchedNames = new Set();
+            for (const substance of uncachedSubstances) {
+                const normalized = this.normalizeSubstanceName(substance);
+                
+                // Search through the drugs object
+                const match = Object.values(allDrugs).find(drug => 
+                    this.normalizeSubstanceName(drug.name) === normalized ||
+                    (drug.aliases && drug.aliases.some(alias => 
+                        this.normalizeSubstanceName(alias) === normalized
+                    ))
+                );
+
+                if (match) {
+                    matchedNames.add(match.name);
+                }
+            }
+
+            // Fetch detailed information for matched substances
+            for (const matchedName of matchedNames) {
+                try {
+                    const response = await this.makeAPIRequest(
+                        `${this.API_ENDPOINTS.TRIPSIT_INFO}?name=${encodeURIComponent(matchedName)}`
+                    );
+
+                    if (response?.data?.data) {
+                        const drugInfo = response.data.data;
+                        const data = {
+                            name: drugInfo.name,
+                            aliases: drugInfo.aliases,
+                            properties: {
+                                dosage: drugInfo.properties?.dosage,
+                                duration: drugInfo.properties?.duration,
+                                effects: drugInfo.properties?.effects,
+                                warnings: drugInfo.properties?.warnings,
+                                categories: drugInfo.properties?.categories
+                            },
+                            interactions: drugInfo.interactions,
+                            source: 'TripSit'
+                        };
+
+                        const normalized = this.normalizeSubstanceName(matchedName);
+                        this.setFromCache(`tripsit_${normalized}`, data);
+
+                        // Match against original substance names
+                        for (const originalName of substanceNames) {
+                            if (this.normalizeSubstanceName(originalName) === normalized) {
+                                results.set(originalName, data);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`Failed to fetch detailed TripSit data for ${matchedName}:`, error);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch TripSit data:', error);
+        }
+
+        return results;
+    }
+}
+
+// Export the class
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = SubstanceAPI;
+} else {
+    window.SubstanceAPI = SubstanceAPI;
+}

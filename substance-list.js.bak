@@ -1,0 +1,113 @@
+class SubstanceList {
+    constructor() {
+        this.substances = new Set([
+            // Common substances (this is a basic list, expand as needed)
+            'Cocaine', 'Heroin', 'Methamphetamine', 'MDMA', 'LSD',
+            'Cannabis', 'Marijuana', 'Ketamine', 'Alcohol', 'Nicotine',
+            'Caffeine', 'Psilocybin', 'DMT', 'Amphetamine', 'Morphine',
+            'Codeine', 'Oxycodone', 'Xanax', 'Valium', 'Adderall'
+        ]);
+        
+        // Add common alternate names and variations
+        this.alternateNames = new Map([
+            ['Cannabis', ['Weed', 'Pot', 'Marijuana', 'THC']],
+            ['MDMA', ['Ecstasy', 'Molly', 'XTC']],
+            ['Cocaine', ['Coke', 'Crack', 'Snow']],
+            ['Methamphetamine', ['Meth', 'Crystal', 'Ice']],
+            ['Heroin', ['Dope', 'Smack']],
+            ['LSD', ['Acid', 'Lucy']],
+            ['Psilocybin', ['Mushrooms', 'Shrooms']],
+            ['Ketamine', ['K', 'Special K']],
+            // Add more as needed
+        ]);
+
+        this.buildRegexPattern();
+    }
+
+    addSubstance(substance) {
+        if (typeof substance === 'string' && substance.trim()) {
+            this.substances.add(substance.trim());
+            this.buildRegexPattern();
+        }
+    }
+
+    removeSubstance(substance) {
+        this.substances.delete(substance);
+        this.buildRegexPattern();
+    }
+
+    buildRegexPattern() {
+        const patterns = [];
+        
+        // Add main substances
+        for (const substance of this.substances) {
+            patterns.push(this.escapeRegExp(substance));
+            
+            // Add alternate names if they exist
+            const alternates = this.alternateNames.get(substance);
+            if (alternates) {
+                alternates.forEach(alt => patterns.push(this.escapeRegExp(alt)));
+            }
+        }
+
+        // Create the regex pattern with word boundaries
+        this.pattern = new RegExp(`\\b(${patterns.join('|')})\\b`, 'gi');
+    }
+
+    escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    findMatches(text) {
+        if (!text || typeof text !== 'string') return [];
+        
+        const matches = [];
+        let match;
+        
+        // Reset lastIndex to ensure we start from the beginning
+        this.pattern.lastIndex = 0;
+        
+        while ((match = this.pattern.exec(text)) !== null) {
+            matches.push({
+                substance: match[0],
+                index: match.index,
+                length: match[0].length
+            });
+        }
+        
+        return matches;
+    }
+
+    getPattern() {
+        return this.pattern;
+    }
+
+    getAllSubstances() {
+        return Array.from(this.substances);
+    }
+
+    // Load custom substances from settings
+    loadCustomSubstances(customSubstances) {
+        if (Array.isArray(customSubstances)) {
+            customSubstances.forEach(substance => this.addSubstance(substance));
+        }
+    }
+
+    // Get all substances including alternates
+    getAllSubstancesWithAlternates() {
+        const all = new Set(this.substances);
+        
+        this.alternateNames.forEach((alternates, main) => {
+            alternates.forEach(alt => all.add(alt));
+        });
+        
+        return Array.from(all);
+    }
+}
+
+// Export for use in other modules
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = SubstanceList;
+} else {
+    window.SubstanceList = SubstanceList;
+}

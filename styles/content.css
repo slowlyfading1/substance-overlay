@@ -1,0 +1,332 @@
+/* Base highlight styles */
+.substance-highlight {
+    transition: all 0.2s ease;
+    border-radius: 3px;
+    padding: 0 2px;
+    margin: 0 1px;
+    cursor: help;
+    position: relative;
+    text-decoration: none;
+    border-bottom: 1px dotted rgba(0, 0, 0, 0.3);
+}
+
+.substance-highlight:hover {
+    opacity: 1 !important;
+    background-color: rgba(230, 255, 230, 0.8) !important;
+}
+
+/* Tooltip container */
+.substance-tooltip {
+    position: absolute;
+    z-index: 999999;
+    max-width: 400px;
+    min-width: 280px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #333;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Tooltip content wrapper */
+.tooltip-content {
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 15px;
+    position: relative;
+}
+
+/* Close button */
+.tooltip-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.05);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #666;
+    transition: all 0.2s ease;
+}
+
+.tooltip-close:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: #333;
+}
+
+/* Section styling */
+.tooltip-section {
+    padding: 15px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.tooltip-section:last-child {
+    border-bottom: none;
+}
+
+/* Source-specific sections */
+.psychonautwiki-section {
+    background: linear-gradient(to right, rgba(41, 128, 185, 0.05), transparent);
+}
+
+.tripsit-section {
+    background: linear-gradient(to right, rgba(46, 204, 113, 0.05), transparent);
+}
+
+/* Headers */
+.substance-tooltip h3 {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.substance-tooltip h4 {
+    margin: 15px 0 8px 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: #34495e;
+}
+
+.substance-tooltip h5 {
+    margin: 12px 0 6px 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: #7f8c8d;
+}
+
+/* Content sections */
+.dosage-section,
+.duration-section,
+.warnings-section,
+.interactions-section {
+    margin: 15px 0;
+}
+
+/* Tables */
+.dosage-table,
+.duration-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 4px;
+}
+
+.dosage-table th,
+.dosage-table td,
+.duration-table th,
+.duration-table td {
+    padding: 8px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    text-align: left;
+}
+
+.dosage-table th,
+.duration-table th {
+    background: rgba(0, 0, 0, 0.03);
+    font-weight: 500;
+}
+
+/* Warning styles */
+.warnings-section {
+    background: rgba(231, 76, 60, 0.05);
+    border-radius: 4px;
+    padding: 10px;
+    margin: 10px 0;
+}
+
+.warnings-section h4 {
+    color: #c0392b;
+}
+
+.warnings-section ul {
+    margin: 5px 0;
+    padding-left: 20px;
+}
+
+.warnings-section li {
+    color: #e74c3c;
+    margin: 3px 0;
+}
+
+/* Interactions styling */
+.interactions-section ul {
+    margin: 5px 0;
+    padding-left: 20px;
+    list-style-type: none;
+}
+
+.interactions-section li {
+    margin: 3px 0;
+    position: relative;
+}
+
+.interactions-section li:before {
+    content: '•';
+    position: absolute;
+    left: -15px;
+    color: #7f8c8d;
+}
+
+/* Interaction severity levels */
+.interactions-section h5[title*="dangerous"] {
+    color: #c0392b;
+}
+
+.interactions-section h5[title*="unsafe"] {
+    color: #d35400;
+}
+
+.interactions-section h5[title*="uncertain"] {
+    color: #f39c12;
+}
+
+/* Scrollbar styling */
+.tooltip-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.tooltip-content::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+}
+
+.tooltip-content::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.tooltip-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+/* Animation */
+@keyframes tooltipFade {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.substance-tooltip {
+    animation: tooltipFade 0.2s ease-out;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .substance-tooltip {
+        max-width: 90vw;
+        min-width: 250px;
+    }
+
+    .tooltip-content {
+        max-height: 70vh;
+        padding: 12px;
+    }
+
+    .substance-tooltip h3 {
+        font-size: 16px;
+    }
+
+    .substance-tooltip h4 {
+        font-size: 14px;
+    }
+
+    .substance-tooltip h5 {
+        font-size: 13px;
+    }
+
+    .dosage-table td,
+    .duration-table td {
+        padding: 6px 8px;
+        font-size: 13px;
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    .substance-highlight {
+        border-bottom: 2px solid rgba(0, 0, 0, 0.5);
+    }
+
+    .substance-tooltip {
+        border: 2px solid #000;
+    }
+
+    .warnings-section {
+        border: 2px solid #c0392b;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .substance-tooltip {
+        background: #1a1a1a;
+        color: #e0e0e0;
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .tooltip-close {
+        background: rgba(255, 255, 255, 0.1);
+        color: #999;
+    }
+
+    .tooltip-close:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+
+    .substance-tooltip h3 {
+        color: #e0e0e0;
+    }
+
+    .substance-tooltip h4 {
+        color: #d0d0d0;
+    }
+
+    .substance-tooltip h5 {
+        color: #b0b0b0;
+    }
+
+    .dosage-table,
+    .duration-table {
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .dosage-table th,
+    .duration-table th {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .warnings-section {
+        background: rgba(231, 76, 60, 0.1);
+    }
+
+    .tooltip-content::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tooltip-content::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .tooltip-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+}

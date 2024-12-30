@@ -1,0 +1,439 @@
+class SubstanceHighlighter {
+    constructor() {
+        this.settings = {};
+        this.api = null;
+        this.observer = null;
+        this.processedNodes = new WeakSet();
+        this.tooltip = null;
+        this.throttleTimeout = null;
+        this.THROTTLE_DELAY = 100;
+        this.EXCLUDED_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT']);
+        this.initialized = false;
+        this.currentTooltipElement = null;
+        this.substancePatterns = null;
+        
+        this.initialize();
+    }
+
+    async initialize() {
+        if (this.initialized) return;
+        
+        try {
+            // Load settings
+            const response = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+            this.settings = response.settings;
+
+            // Initialize API
+            this.api = new SubstanceAPI(this.settings);
+
+            // Setup observers and event listeners
+            this.setupMutationObserver();
+            this.setupMessageListener();
+            this.setupScrollListener();
+            
+            // Create tooltip element
+            this.createTooltip();
+            
+            // Initial scan of the page
+            this.scanPage();
+            
+            this.initialized = true;
+        } catch (error) {
+            console.error('Failed to initialize SubstanceHighlighter:', error);
+        }
+    }
+
+    setupMutationObserver() {
+        this.observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList') {
+                    for (const node of mutation.addedNodes) {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            this.throttledProcessNode(node);
+                        }
+                    }
+                }
+            }
+        });
+
+        this.observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    setupMessageListener() {
+        chrome.runtime.onMessage.addListener((message) => {
+            if (message.type === 'SETTINGS_UPDATED') {
+                this.settings = message.settings;
+                this.api.settings = message.settings;
+                this.updateHighlightStyles();
+                this.scanPage();
+            }
+        });
+    }
+
+    setupScrollListener() {
+        window.addEventListener('scroll', () => {
+            if (this.tooltip && this.currentTooltipElement) {
+                this.updateTooltipPosition(this.currentTooltipElement);
+            }
+        }, { passive: true });
+    }
+
+    createTooltip() {
+        this.tooltip = document.createElement('div');
+        this.tooltip.className = 'substance-tooltip';
+        this.tooltip.style.display = 'none';
+        document.body.appendChild(this.tooltip);
+    }
+
+    updateHighlightStyles() {
+        const style = document.createElement('style');
+        style.textContent = `
+            .substance-highlight {
+                background-color: ${this.settings.highlightColor || '#e6ffe6'};
+                cursor: help;
+                border-bottom: 2px solid rgba(102, 102, 102, 0.5);
+                transition: background-color 0.2s ease-in-out;
+                position: relative;
+                display: inline-block;
+                padding: 0 2px;
+            }
+            .substance-highlight:hover {
+                background-color: ${this.settings.highlightColor || '#e6ffe6'};
+                opacity: 0.8;
+            }
+            .substance-tooltip {
+                position: fixed;
+                z-index: 10000;
+                max-width: 300px;
+                background: white;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 12px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                font-size: 14px;
+                line-height: 1.4;
+                color: #333;
+            }
+            .substance-tooltip h3 {
+                margin: 0 0 8px 0;
+                color: #1a1a1a;
+                font-size: 16px;
+            }
+            .substance-tooltip p {
+                margin: 8px 0;
+            }
+            .substance-tooltip .tooltip-section {
+                margin: 12px 0;
+            }
+            .substance-tooltip .tooltip-footer {
+                margin-top: 12px;
+                padding-top: 8px;
+                border-top: 1px solid #eee;
+                font-size: 12px;
+                color: #666;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    throttledProcessNode(node) {
+        if (this.throttleTimeout) {
+            clearTimeout(this.throttleTimeout);
+        }
+        
+        this.throttleTimeout = setTimeout(() => {
+            this.processNode(node);
+        }, this.THROTTLE_DELAY);
+    }
+
+    async scanPage() {
+        const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode: (node) => {
+                    if (this.shouldProcessNode(node)) {
+                        return NodeFilter.FILTER_ACCEPT;
+                    }
+                    return NodeFilter.FILTER_REJECT;
+                }
+            }
+        );
+
+        const textNodes = [];
+        let node;
+        while (node = walker.nextNode()) {
+            textNodes.push(node);
+        }
+
+        // Process nodes in batches
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < textNodes.length; i += BATCH_SIZE) {
+            const batch = textNodes.slice(i, i + BATCH_SIZE);
+            await this.processTextNodesBatch(batch);
+            // Small delay between batches to prevent freezing
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }
+    }
+
+    async processTextNodesBatch(nodes) {
+        for (const node of nodes) {
+            if (!this.processedNodes.has(node)) {
+                await this.processTextNode(node);
+                this.processedNodes.add(node);
+            }
+        }
+    }
+
+    shouldProcessNode(node) {
+        if (!node || !node.parentElement) return false;
+        if (this.processedNodes.has(node)) return false;
+        if (this.EXCLUDED_TAGS.has(node.parentElement.tagName)) return false;
+        if (node.parentElement.closest('script, style, noscript, textarea, input')) return false;
+        if (node.textContent.trim().length < 2) return false;
+        return true;
+    }
+
+    async processNode(node) {
+        if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
+        
+        const walker = document.createTreeWalker(
+            node,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode: (node) => this.shouldProcessNode(node) ? 
+                    NodeFilter.FILTER_ACCEPT : 
+                    NodeFilter.FILTER_REJECT
+            }
+        );
+
+        const textNodes = [];
+        let textNode;
+        while (textNode = walker.nextNode()) {
+            textNodes.push(textNode);
+        }
+
+        await this.processTextNodesBatch(textNodes);
+    }
+
+    async processTextNode(node) {
+        if (!node || !node.textContent || this.processedNodes.has(node)) return;
+
+        const text = node.textContent;
+        const matches = this.findSubstanceMatches(text);
+        
+        if (matches.length === 0) return;
+
+        const fragment = document.createDocumentFragment();
+        let lastIndex = 0;
+
+        for (const match of matches) {
+            // Add text before the match
+            if (match.index > lastIndex) {
+                fragment.appendChild(
+                    document.createTextNode(text.slice(lastIndex, match.index))
+                );
+            }
+
+            // Create highlighted element
+            const span = document.createElement('span');
+            span.className = 'substance-highlight';
+            span.textContent = match[0];
+            span.dataset.substance = match[0];
+            
+            // Add event listeners
+            span.addEventListener('mouseover', (e) => this.handleMouseOver(e));
+            span.addEventListener('mouseout', (e) => this.handleMouseOut(e));
+            
+            fragment.appendChild(span);
+            lastIndex = match.index + match[0].length;
+        }
+
+        // Add remaining text
+        if (lastIndex < text.length) {
+            fragment.appendChild(
+                document.createTextNode(text.slice(lastIndex))
+            );
+        }
+
+        // Replace the original node
+        try {
+            node.parentNode.replaceChild(fragment, node);
+            this.processedNodes.add(node);
+        } catch (error) {
+            console.warn('Failed to replace node:', error);
+        }
+    }
+
+    findSubstanceMatches(text) {
+        // This should be implemented to match substances in text
+        // For now, returning an empty array
+        return [];
+    }
+
+    async handleMouseOver(event) {
+        try {
+            const highlightElement = event.target.closest('.substance-highlight');
+            if (!highlightElement) return;
+
+            const substanceName = highlightElement.dataset.substance;
+            if (!substanceName) return;
+
+            this.currentTooltipElement = highlightElement;
+
+            // Show loading state
+            this.showTooltip(highlightElement, { 
+                name: substanceName,
+                summary: 'Loading substance information...',
+                source: 'Loading...'
+            });
+
+            // Fetch substance data
+            let substanceData = null;
+            
+            if (this.settings.enablePsychonautWiki) {
+                try {
+                    const psychonautData = await this.api.getPsychonautWikiMatches([substanceName]);
+                    if (psychonautData.has(substanceName)) {
+                        substanceData = psychonautData.get(substanceName);
+                    }
+                } catch (error) {
+                    console.warn('PsychonautWiki data fetch failed:', error);
+                }
+            }
+
+            if (!substanceData && this.settings.enableTripSit) {
+                try {
+                    const tripSitData = await this.api.getTripSitMatches([substanceName]);
+                    if (tripSitData.has(substanceName)) {
+                        substanceData = tripSitData.get(substanceName);
+                    }
+                } catch (error) {
+                    console.warn('TripSit data fetch failed:', error);
+                }
+            }
+
+            if (substanceData) {
+                this.showTooltip(highlightElement, substanceData);
+            } else {
+                this.showTooltip(highlightElement, {
+                    name: substanceName,
+                    summary: 'No detailed information available for this substance.',
+                    source: 'No data found'
+                });
+            }
+        } catch (error) {
+            console.error('Error in handleMouseOver:', error);
+            this.hideTooltip();
+        }
+    }
+
+    handleMouseOut(event) {
+        const highlightElement = event.target.closest('.substance-highlight');
+        const tooltipElement = event.relatedTarget?.closest('.substance-tooltip');
+        
+        if (!tooltipElement && (!highlightElement || !highlightElement.contains(event.relatedTarget))) {
+            this.hideTooltip();
+        }
+    }
+
+    showTooltip(element, data) {
+        if (!this.tooltip || !element || !data) return;
+
+        this.tooltip.innerHTML = this.formatTooltipContent(data);
+        this.tooltip.style.display = 'block';
+        this.updateTooltipPosition(element);
+    }
+
+    hideTooltip() {
+        if (this.tooltip) {
+            this.tooltip.style.display = 'none';
+            this.currentTooltipElement = null;
+        }
+    }
+
+    updateTooltipPosition(element) {
+        if (!this.tooltip || !element) return;
+
+        const rect = element.getBoundingClientRect();
+        const tooltipRect = this.tooltip.getBoundingClientRect();
+        
+        let left = rect.left + (rect.width - tooltipRect.width) / 2;
+        let top = rect.bottom + 10;
+
+        // Ensure tooltip stays within viewport
+        if (left < 10) left = 10;
+        if (left + tooltipRect.width > window.innerWidth - 10) {
+            left = window.innerWidth - tooltipRect.width - 10;
+        }
+
+        if (top + tooltipRect.height > window.innerHeight - 10) {
+            top = rect.top - tooltipRect.height - 10;
+        }
+
+        this.tooltip.style.left = `${left}px`;
+        this.tooltip.style.top = `${top}px`;
+    }
+
+    formatTooltipContent(data) {
+        let content = `<h3>${data.name}</h3>`;
+
+        if (data.summary) {
+            content += `<p>${data.summary}</p>`;
+        }
+
+        if (this.settings.showDosage && data.properties?.dosage) {
+            content += `
+                <div class="tooltip-section">
+                    <strong>Dosage:</strong>
+                    <p>${data.properties.dosage}</p>
+                </div>
+            `;
+        }
+
+        if (this.settings.showEffects && data.properties?.effects) {
+            content += `
+                <div class="tooltip-section">
+                    <strong>Effects:</strong>
+                    <p>${data.properties.effects}</p>
+                </div>
+            `;
+        }
+
+        if (this.settings.showWarnings && data.properties?.warnings) {
+            content += `
+                <div class="tooltip-section warning">
+                    <strong>⚠️ Warnings:</strong>
+                    <p>${data.properties.warnings}</p>
+                </div>
+            `;
+        }
+
+        if (this.settings.showInteractions && data.interactions) {
+            content += `
+                <div class="tooltip-section">
+                    <strong>Interactions:</strong>
+                    <ul>
+                        ${Object.entries(data.interactions).map(([type, list]) => `
+                            <li>${type}: ${list.join(', ')}</li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        content += `
+            <div class="tooltip-footer">
+                Source: ${data.source}
+            </div>
+        `;
+
+        return content;
+    }
+}
+
+// Initialize the highlighter
+const highlighter = new SubstanceHighlighter();

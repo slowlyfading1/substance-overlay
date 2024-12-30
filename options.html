@@ -1,0 +1,233 @@
+<!-- options.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Harm Reduction Tool Settings</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            color: #444;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .option-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+        }
+
+        input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        input[type="color"] {
+            padding: 0;
+            width: 50px;
+            height: 30px;
+        }
+
+        .color-picker {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .custom-substances {
+            margin-top: 20px;
+        }
+
+        .substance-list {
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .substance-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .substance-item:last-child {
+            border-bottom: none;
+        }
+
+        .remove-substance {
+            color: #f44336;
+            cursor: pointer;
+            padding: 2px 6px;
+            border: none;
+            background: none;
+            font-size: 1.2em;
+        }
+
+        .add-substance {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .primary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        button:hover {
+            filter: brightness(90%);
+        }
+
+        .save-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: right;
+        }
+
+        .status-message {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .success {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .error {
+            background: #f44336;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Harm Reduction Tool Settings</h1>
+
+        <div class="section">
+            <h2>Display Settings</h2>
+            <div class="option-group">
+                <div class="color-picker">
+                    <label for="highlightColor">Highlight Color:</label>
+                    <input type="color" id="highlightColor" name="highlightColor">
+                    <input type="text" id="highlightColorText" size="10">
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Information Display</h2>
+            <div class="option-group">
+                <label>
+                    <input type="checkbox" id="showDosage" name="showDosage">
+                    Show Dosage Information
+                </label>
+                <label>
+                    <input type="checkbox" id="showDuration" name="showDuration">
+                    Show Duration Information
+                </label>
+                <label>
+                    <input type="checkbox" id="showSafety" name="showSafety">
+                    Show Safety Information
+                </label>
+                <label>
+                    <input type="checkbox" id="showInteractions" name="showInteractions">
+                    Show Drug Interactions
+                </label>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Data Sources</h2>
+            <div class="option-group">
+                <label>
+                    <input type="checkbox" id="enablePsychonautWiki" name="enablePsychonautWiki">
+                    Enable PsychonautWiki API
+                </label>
+                <label>
+                    <input type="checkbox" id="enableTripSit" name="enableTripSit">
+                    Enable TripSit API
+                </label>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Custom Substances</h2>
+            <div class="custom-substances">
+                <div class="substance-list" id="substanceList">
+                    <!-- Substance items will be added here dynamically -->
+                </div>
+                <div class="add-substance">
+                    <input type="text" id="newSubstance" placeholder="Enter substance name">
+                    <button id="addSubstance" class="primary">Add</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="save-section">
+            <button id="saveSettings" class="primary">Save Settings</button>
+            <button id="resetSettings" class="secondary">Reset to Defaults</button>
+        </div>
+
+        <div id="statusMessage" class="status-message"></div>
+    </div>
+    <script src="options.js"></script>
+</body>
+</html>

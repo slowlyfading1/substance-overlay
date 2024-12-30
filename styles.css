@@ -1,0 +1,79 @@
+/* styles.css */
+.substance-highlight {
+    border-radius: 2px;
+    padding: 0 2px;
+    transition: background-color 0.2s ease;
+    cursor: help;
+}
+
+.substance-highlight:hover {
+    filter: brightness(95%);
+}
+
+.substance-tooltip {
+    position: absolute;
+    z-index: 10000;
+    max-width: 400px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+    padding: 12px;
+    font-size: 14px;
+    line-height: 1.4;
+    color: #333;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    border: 1px solid #ddd;
+}
+
+.substance-tooltip h3 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    color: #1a1a1a;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 4px;
+}
+
+.substance-tooltip h4 {
+    margin: 8px 0 4px 0;
+    font-size: 14px;
+    color: #444;
+}
+
+.substance-tooltip .sources {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.substance-tooltip .summary {
+    margin-bottom: 8px;
+}
+
+.substance-tooltip ul {
+    margin: 4px 0;
+    padding-left: 20px;
+}
+
+.substance-tooltip li {
+    margin: 2px 0;
+}
+
+.substance-tooltip .dosage-section,
+.substance-tooltip .duration-section,
+.substance-tooltip .safety-section,
+.substance-tooltip .interactions-section {
+    margin-top: 8px;
+}
+
+.substance-tooltip .dangerous {
+    color: #d32f2f;
+}
+
+.substance-tooltip .unsafe {
+    color: #f57c00;
+}
+
+.substance-tooltip .uncertain {
+    color: #0288d1;
+}
